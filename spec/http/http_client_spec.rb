@@ -1,8 +1,6 @@
 require 'spec_helper'
 require 'rack/mock'
 
-require 'pry'
-
 describe Twilio::HTTP::Client do
   before do
     @client = Twilio::HTTP::Client.new
@@ -11,36 +9,29 @@ describe Twilio::HTTP::Client do
   it 'should allow setting a global timeout' do
     @client = Twilio::HTTP::Client.new(timeout: 10)
     @connection = Faraday::Connection.new
-    request_options = spy('request options')
-    request = spy('request', options: request_options)
 
     expect(Faraday).to receive(:new).and_yield(@connection).and_return(@connection)
-    allow_any_instance_of(Faraday::Connection).to(receive(:get) { # FIXME: invalid yield???
-      # yield request # FIXME: invalid yield??
-      double('response', status: 301, body: {}, headers: {})
-    })
+    allow_any_instance_of(Faraday::Connection).to receive(:send).and_return(double('response', status: 301, body: {}, headers: {}))
 
     @client.request('host', 'port', 'GET', 'url', nil, nil, {}, ['a', 'b'])
 
     expect(@client.timeout).to eq(10)
-    expect(request_options).to have_received(:open_timeout=).with(10)
-    expect(request_options).to have_received(:timeout=).with(10)
+    expect(@connection.options.open_timeout).to eq(10)
+    expect(@connection.options.timeout).to eq(10)
   end
 
   it 'should allow overriding timeout per request' do
     @client = Twilio::HTTP::Client.new(timeout: 10)
     @connection = Faraday::Connection.new
-    request_options = spy('request options')
-    request = spy('request', options: request_options)
 
     expect(Faraday).to receive(:new).and_yield(@connection).and_return(@connection)
-    allow_any_instance_of(Faraday::Connection).to receive(:send).and_yield(request).and_return(double('response', status: 301, body: {}, headers: {}))
+    allow_any_instance_of(Faraday::Connection).to receive(:send).and_return(double('response', status: 301, body: {}, headers: {}))
 
     @client.request('host', 'port', 'GET', 'url', nil, nil, {}, ['a', 'b'], 20)
 
     expect(@client.timeout).to eq(10)
-    expect(request_options).to have_received(:open_timeout=).with(20)
-    expect(request_options).to have_received(:timeout=).with(20)
+    expect(@connection.options.open_timeout).to eq(20)
+    expect(@connection.options.timeout).to eq(20)
   end
 
   it 'should contain a last response' do
