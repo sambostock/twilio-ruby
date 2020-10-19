@@ -1,5 +1,6 @@
 require 'spec_helper'
 require 'rack/mock'
+require 'pry' # TODO: REMOVE ME
 
 describe Twilio::HTTP::Client do
   describe 'new tests' do # FIXME: Remove this
@@ -149,7 +150,7 @@ describe Twilio::HTTP::Client do
       end
 
       context 'after a connection error' do
-        it 'should be nil after a connection error' do
+        it 'should be nil' do
           spy_on_connection
           expect(connection).to receive(request_method.downcase.to_sym).and_raise(Faraday::ConnectionFailed, 'BOOM')
 
@@ -177,7 +178,7 @@ describe Twilio::HTTP::Client do
     describe '#last_request' do
       it 'should return the last request made' do
         spy_on_connection
-        expect(connection).to receive(request_method).and_return(response)
+        expect(connection).to receive(request_method.downcase.to_sym).and_return(response)
 
         client.request(host,
                        port,
@@ -202,14 +203,54 @@ describe Twilio::HTTP::Client do
         expect(client.last_request.timeout).to eq(timeout)
       end
 
-      it 'should be cleared between requests'
-      it 'should still be set after a 5XX response'
-      it 'should still be set after a connection error'
+      it 'should be cleared between requests' do
+        spy_on_connection
+        expect(connection).to receive(request_method.downcase.to_sym).and_return(response)
+        client.request(host, port, request_method, url, nil, nil, request_headers, auth, timeout)
+
+        last_response = client.last_response
+
+        expect(connection).to receive(request_method.downcase.to_sym).and_return(response)
+        client.request(host, port, request_method, url, nil, nil, request_headers, auth, timeout)
+
+        expect(client.last_response).not_to be(last_response)
+      end
+
+      context 'after a 5XX response' do
+        let(:response) { double('response', status: 500, body: {}.to_json, headers: {}) }
+
+        it 'should still be set' do
+          spy_on_connection
+          expect_request
+
+          client.request(host, port, request_method, url, nil, nil, request_headers, auth)
+
+          expect(client.last_request).not_to be_nil
+        end
+      end
+
+      context 'after a connection error' do
+        it 'should still be set' do
+          spy_on_connection
+          expect(connection).to receive(request_method.downcase.to_sym).and_raise(Faraday::ConnectionFailed, 'BOOM')
+
+          expect { client.request(host, port, request_method, url, nil, nil, request_headers, auth) }.to raise_exception(Twilio::REST::TwilioError)
+
+          expect(client.last_request).not_to be_nil
+        end
+      end
     end
 
     describe '#adapter' do
-      it 'is set to Faraday.default_adapter by default'
-      it 'can be changed'
+      it 'is set to Faraday.default_adapter by default' do
+        expect(client.adapter).to eq(Faraday.default_adapter)
+      end
+
+      it 'can be changed' do
+        client.adapter = :test
+
+        expect(client.adapter).to eq(:test)
+      end
     end
   end
 
